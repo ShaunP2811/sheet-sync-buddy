@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TARGET_SCHEMA } from '@/types/sync';
 import type { ColumnMapping } from '@/types/sync';
