@@ -97,10 +97,26 @@ export default function NewSync() {
       // For same_tab/existing_tab, use the actual sheet headers; for new_tab, use TARGET_SCHEMA
       const destHeaders = destination.type === 'new_tab' ? [...TARGET_SCHEMA] : primaryHeaders;
 
-      // Append new leads — ordered by destination headers
+      // Build a mapping from TARGET_SCHEMA column names → actual sheet header names
+      // e.g. "FullName" → "Full Name", "Phoneno" → "Phone No"
+      const normStr = (s: string) => s.toLowerCase().replace(/[\s_\-()]/g, '');
+      const targetToSheetHeader: Record<string, string> = {};
+      const sheetHeaderToTarget: Record<string, string> = {};
+      for (const targetCol of TARGET_SCHEMA) {
+        const match = destHeaders.find((h) => normStr(h) === normStr(targetCol));
+        if (match) {
+          targetToSheetHeader[targetCol] = match;
+          sheetHeaderToTarget[match] = targetCol;
+        }
+      }
+
+      // Append new leads — ordered by destination headers, mapping target keys to sheet headers
       if (comparisonResult.newLeads.length > 0) {
         const rows = comparisonResult.newLeads.map((nl) =>
-          destHeaders.map((col) => nl.mappedRow[col] ?? '')
+          destHeaders.map((sheetCol) => {
+            const targetCol = sheetHeaderToTarget[sheetCol];
+            return targetCol ? (nl.mappedRow[targetCol] ?? '') : '';
+          })
         );
         await appendRows(accessToken, primarySheet.id, destTab, rows);
       }
@@ -109,8 +125,9 @@ export default function NewSync() {
       if (comparisonResult.updates.length > 0 && destination.type === 'same_tab') {
         const cellUpdates: CellUpdate[] = [];
         for (const update of comparisonResult.updates) {
-          for (const [col, value] of Object.entries(update.fieldsToFill)) {
-            const colIndex = destHeaders.indexOf(col);
+          for (const [targetCol, value] of Object.entries(update.fieldsToFill)) {
+            const sheetCol = targetToSheetHeader[targetCol];
+            const colIndex = sheetCol ? destHeaders.indexOf(sheetCol) : -1;
             if (colIndex >= 0) {
               cellUpdates.push({
                 row: update.primaryRowIndex,
