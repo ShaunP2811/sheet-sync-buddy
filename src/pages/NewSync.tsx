@@ -155,6 +155,15 @@ export default function NewSync() {
         rowsSkipped: comparisonResult.summary.skippedCount,
         status: 'completed',
         completedAt: new Date().toISOString(),
+        logs: {
+          newLeads: comparisonResult.newLeads,
+          updates: comparisonResult.updates.map((u) => ({
+            matchedBy: u.matchedBy,
+            matchValue: u.matchValue,
+            fieldsToFill: u.fieldsToFill,
+          })),
+          skipped: comparisonResult.skipped,
+        },
       });
 
       toast.success('Sync completed successfully!');

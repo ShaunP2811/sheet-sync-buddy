@@ -3,6 +3,9 @@ import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import AppLayout from '@/components/layout/AppLayout';
 import { getSyncHistoryEntry } from '@/services/syncHistory';
 
@@ -96,6 +99,132 @@ export default function SyncDetail() {
             </CardContent>
           </Card>
         </div>
+
+        {entry.logs && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Detailed Logs</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Accordion type="multiple" className="w-full">
+                {entry.logs.newLeads.length > 0 && (
+                  <AccordionItem value="new-leads">
+                    <AccordionTrigger>
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-success" />
+                        New Leads Added ({entry.logs.newLeads.length})
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <ScrollArea className="max-h-80">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-10">#</TableHead>
+                              <TableHead>FullName</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Phoneno</TableHead>
+                              <TableHead>Location</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {entry.logs.newLeads.map((lead, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                                <TableCell>{lead.mappedRow['FullName'] || '—'}</TableCell>
+                                <TableCell>{lead.mappedRow['Email'] || '—'}</TableCell>
+                                <TableCell>{lead.mappedRow['Phoneno'] || '—'}</TableCell>
+                                <TableCell>{lead.mappedRow['Location'] || '—'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {entry.logs.updates.length > 0 && (
+                  <AccordionItem value="updates">
+                    <AccordionTrigger>
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                        Rows Updated ({entry.logs.updates.length})
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <ScrollArea className="max-h-80">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-10">#</TableHead>
+                              <TableHead>Matched By</TableHead>
+                              <TableHead>Match Value</TableHead>
+                              <TableHead>Fields Filled</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {entry.logs.updates.map((update, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{update.matchedBy}</Badge>
+                                </TableCell>
+                                <TableCell className="font-mono text-xs">{update.matchValue}</TableCell>
+                                <TableCell>
+                                  {Object.entries(update.fieldsToFill).map(([col, val]) => (
+                                    <span key={col} className="inline-block mr-2 text-xs">
+                                      <span className="text-muted-foreground">{col}:</span> {val}
+                                    </span>
+                                  ))}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+
+                {entry.logs.skipped.length > 0 && (
+                  <AccordionItem value="skipped">
+                    <AccordionTrigger>
+                      <span className="flex items-center gap-2">
+                        <AlertTriangle className="h-4 w-4 text-warning" />
+                        Rows Skipped ({entry.logs.skipped.length})
+                      </span>
+                    </AccordionTrigger>
+                    <AccordionContent>
+                      <ScrollArea className="max-h-80">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-10">#</TableHead>
+                              <TableHead>Reason</TableHead>
+                              <TableHead>Email</TableHead>
+                              <TableHead>Phone</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {entry.logs.skipped.map((skip, i) => (
+                              <TableRow key={i}>
+                                <TableCell className="text-muted-foreground">{i + 1}</TableCell>
+                                <TableCell>{skip.reason}</TableCell>
+                                <TableCell className="font-mono text-xs">{skip.sourceRow['Email'] || skip.sourceRow['email'] || '—'}</TableCell>
+                                <TableCell className="font-mono text-xs">{skip.sourceRow['Phoneno'] || skip.sourceRow['phone'] || '—'}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </ScrollArea>
+                    </AccordionContent>
+                  </AccordionItem>
+                )}
+              </Accordion>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </AppLayout>
   );
