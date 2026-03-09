@@ -223,6 +223,8 @@ export default function NewSync() {
       sourceLabel={sourceLabel}
       destination={destination}
       result={comparisonResult}
+      primaryHeaders={primaryHeaders}
+      primaryRowCount={primaryRows.length}
       isLoading={isLoading}
       onConfirm={handleExecuteSync}
       onBack={back}
