@@ -93,18 +93,24 @@ export default function NewSync() {
         await createTab(accessToken, primarySheet.id, destTab, [...TARGET_SCHEMA]);
       }
 
-      // Append new leads
+      // Determine the actual column order from the destination sheet
+      // For same_tab/existing_tab, use the actual sheet headers; for new_tab, use TARGET_SCHEMA
+      const destHeaders = destination.type === 'new_tab' ? [...TARGET_SCHEMA] : primaryHeaders;
+
+      // Append new leads — ordered by destination headers
       if (comparisonResult.newLeads.length > 0) {
-        const rows = comparisonResult.newLeads.map((nl) => rowToArray(nl.mappedRow));
+        const rows = comparisonResult.newLeads.map((nl) =>
+          destHeaders.map((col) => nl.mappedRow[col] ?? '')
+        );
         await appendRows(accessToken, primarySheet.id, destTab, rows);
       }
 
-      // Update blank fields
+      // Update blank fields — use actual sheet column positions
       if (comparisonResult.updates.length > 0 && destination.type === 'same_tab') {
         const cellUpdates: CellUpdate[] = [];
         for (const update of comparisonResult.updates) {
           for (const [col, value] of Object.entries(update.fieldsToFill)) {
-            const colIndex = TARGET_SCHEMA.indexOf(col as any);
+            const colIndex = destHeaders.indexOf(col);
             if (colIndex >= 0) {
               cellUpdates.push({
                 row: update.primaryRowIndex,
@@ -115,7 +121,7 @@ export default function NewSync() {
           }
         }
         if (cellUpdates.length > 0) {
-          await updateCells(accessToken, primarySheet.id, destTab, cellUpdates, primaryHeaders);
+          await updateCells(accessToken, primarySheet.id, destTab, cellUpdates, destHeaders);
         }
       }
 
