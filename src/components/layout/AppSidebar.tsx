@@ -1,6 +1,7 @@
 import { Link, useLocation } from 'react-router-dom';
-import { LayoutDashboard, GitCompare, History, LogOut } from 'lucide-react';
+import { LayoutDashboard, GitCompare, History, LogOut, Sun, Moon, Monitor } from 'lucide-react';
 import { useGoogleAuth } from '@/features/auth/GoogleAuthContext';
+import { useTheme } from '@/hooks/use-theme';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 
@@ -10,9 +11,16 @@ const navItems = [
   { to: '/history', icon: History, label: 'History' },
 ];
 
+const themeOptions = [
+  { value: 'light' as const, icon: Sun, label: 'Light' },
+  { value: 'dark' as const, icon: Moon, label: 'Dark' },
+  { value: 'system' as const, icon: Monitor, label: 'System' },
+];
+
 export default function AppSidebar() {
   const { pathname } = useLocation();
   const { user, signOut } = useGoogleAuth();
+  const { theme, setTheme } = useTheme();
 
   return (
     <aside className="hidden md:flex flex-col w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border min-h-screen">
@@ -44,6 +52,27 @@ export default function AppSidebar() {
           );
         })}
       </nav>
+
+      {/* Theme switcher */}
+      <div className="px-3 py-2">
+        <div className="flex items-center gap-1 p-1 rounded-lg bg-sidebar-accent/50">
+          {themeOptions.map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setTheme(opt.value)}
+              className={`flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                theme === opt.value
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground/60 hover:text-sidebar-foreground'
+              }`}
+              title={opt.label}
+            >
+              <opt.icon className="h-3.5 w-3.5" />
+              <span className="sr-only sm:not-sr-only">{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
 
       {/* User */}
       {user && (
