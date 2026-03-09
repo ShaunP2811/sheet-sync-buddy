@@ -2,15 +2,17 @@ import { useState, useMemo } from 'react';
 import { ArrowLeft, ArrowRight, AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { TARGET_SCHEMA } from '@/types/sync';
 import type { ColumnMapping } from '@/types/sync';
+import type { ComparisonProgress } from '@/features/sync/comparisonEngine';
 
 interface Props {
   sourceHeaders: string[];
   mappings: ColumnMapping[];
   isComparing?: boolean;
+  comparisonProgress?: ComparisonProgress | null;
   onMappingsSet: (mappings: ColumnMapping[]) => void;
   onBack: () => void;
 }
@@ -39,7 +41,7 @@ function computeAutoMapStats(sourceHeaders: string[]) {
   return { matched, unmatched, unmappedSource, total: TARGET_SCHEMA.length };
 }
 
-export default function StepColumnMapping({ sourceHeaders, mappings: existingMappings, isComparing, onMappingsSet, onBack }: Props) {
+export default function StepColumnMapping({ sourceHeaders, mappings: existingMappings, isComparing, comparisonProgress, onMappingsSet, onBack }: Props) {
   const [mappings, setMappings] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     for (const targetCol of TARGET_SCHEMA) {
@@ -158,16 +160,22 @@ export default function StepColumnMapping({ sourceHeaders, mappings: existingMap
         )}
 
         {isComparing ? (
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-3 justify-center py-6">
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-3 justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
               <p className="text-sm font-medium text-foreground">Running comparison…</p>
             </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-4 w-5/6" />
-            </div>
+            {comparisonProgress && comparisonProgress.total > 0 && (
+              <div className="space-y-2">
+                <Progress
+                  value={(comparisonProgress.processed / comparisonProgress.total) * 100}
+                  className="h-2"
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  {comparisonProgress.processed.toLocaleString()} / {comparisonProgress.total.toLocaleString()} rows processed
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex justify-end pt-2">

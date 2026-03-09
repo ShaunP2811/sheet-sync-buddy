@@ -117,6 +117,14 @@ function findMatch(
 
 // ─── Main Comparison ─────────────────────────────────────────
 
+const BATCH_SIZE = 200;
+
+export interface ComparisonProgress {
+  processed: number;
+  total: number;
+}
+
+/** Synchronous version — kept for tests */
 export function runComparison(
   primaryRows: SheetRow[],
   sourceRows: SheetRow[],
@@ -130,55 +138,7 @@ export function runComparison(
   const lookup = buildPrimaryLookup(primaryRows);
 
   for (const sourceRow of sourceRows) {
-    const mapped = mapSourceRow(sourceRow, columnMappings);
-    const key: RowKey = {
-      email: normalizeEmail(mapped['Email']),
-      phone: normalizePhone(mapped['Phoneno']),
-    };
-
-    // Skip if no usable key
-    if (!key.email && !key.phone) {
-      skipped.push({
-        sourceRow,
-        reason: 'No usable Email or Phoneno',
-      });
-      continue;
-    }
-
-    // Try to find a match
-    const match = findMatch(key, lookup, matchFields);
-
-    if (!match) {
-      // New lead
-      newLeads.push({ mappedRow: mapped });
-    } else {
-      // Check for blank fields to fill
-      const fieldsToFill: Record<string, string> = {};
-
-      for (const m of columnMappings) {
-        const targetCol = m.targetColumn;
-        const primaryValue = match.entry.row[targetCol];
-        const sourceValue = mapped[targetCol];
-
-        if (isBlank(primaryValue) && !isBlank(sourceValue)) {
-          fieldsToFill[targetCol] = sourceValue!.trim();
-        }
-      }
-
-      if (Object.keys(fieldsToFill).length > 0) {
-        updates.push({
-          primaryRowIndex: match.entry.index,
-          matchedBy: match.matchedBy,
-          matchValue: match.matchValue,
-          fieldsToFill,
-        });
-      } else {
-        skipped.push({
-          sourceRow,
-          reason: 'Matched but no blank fields to fill',
-        });
-      }
-    }
+    processRow(sourceRow, lookup, columnMappings, matchFields, newLeads, updates, skipped);
   }
 
   return {
@@ -191,4 +151,98 @@ export function runComparison(
       skippedCount: skipped.length,
     },
   };
+}
+
+/** Async batched version — reports progress via callback */
+export function runComparisonAsync(
+  primaryRows: SheetRow[],
+  sourceRows: SheetRow[],
+  columnMappings: ColumnMapping[],
+  onProgress: (p: ComparisonProgress) => void,
+  matchFields: MatchField[] = ['email', 'phoneno']
+): Promise<ComparisonResult> {
+  return new Promise((resolve) => {
+    const newLeads: NewLead[] = [];
+    const updates: UpdateLead[] = [];
+    const skipped: SkippedRow[] = [];
+    const lookup = buildPrimaryLookup(primaryRows);
+    const total = sourceRows.length;
+    let index = 0;
+
+    function processBatch() {
+      const end = Math.min(index + BATCH_SIZE, total);
+      while (index < end) {
+        processRow(sourceRows[index], lookup, columnMappings, matchFields, newLeads, updates, skipped);
+        index++;
+      }
+      onProgress({ processed: index, total });
+
+      if (index < total) {
+        setTimeout(processBatch, 0);
+      } else {
+        resolve({
+          newLeads,
+          updates,
+          skipped,
+          summary: {
+            newLeadCount: newLeads.length,
+            updateCount: updates.length,
+            skippedCount: skipped.length,
+          },
+        });
+      }
+    }
+
+    onProgress({ processed: 0, total });
+    setTimeout(processBatch, 0);
+  });
+}
+
+// ─── Shared row processor ─────────────────────────────────────
+
+function processRow(
+  sourceRow: SheetRow,
+  lookup: PrimaryLookup,
+  columnMappings: ColumnMapping[],
+  matchFields: MatchField[],
+  newLeads: NewLead[],
+  updates: UpdateLead[],
+  skipped: SkippedRow[]
+) {
+  const mapped = mapSourceRow(sourceRow, columnMappings);
+  const key: RowKey = {
+    email: normalizeEmail(mapped['Email']),
+    phone: normalizePhone(mapped['Phoneno']),
+  };
+
+  if (!key.email && !key.phone) {
+    skipped.push({ sourceRow, reason: 'No usable Email or Phoneno' });
+    return;
+  }
+
+  const match = findMatch(key, lookup, matchFields);
+
+  if (!match) {
+    newLeads.push({ mappedRow: mapped });
+  } else {
+    const fieldsToFill: Record<string, string> = {};
+    for (const m of columnMappings) {
+      const targetCol = m.targetColumn;
+      const primaryValue = match.entry.row[targetCol];
+      const sourceValue = mapped[targetCol];
+      if (isBlank(primaryValue) && !isBlank(sourceValue)) {
+        fieldsToFill[targetCol] = sourceValue!.trim();
+      }
+    }
+    if (Object.keys(fieldsToFill).length > 0) {
+      updates.push({
+        primaryRowIndex: match.entry.index,
+        matchedBy: match.matchedBy,
+        matchValue: match.matchValue,
+        fieldsToFill,
+      });
+    } else {
+      skipped.push({ sourceRow, reason: 'Matched but no blank fields to fill' });
+    }
+  }
 }

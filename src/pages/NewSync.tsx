@@ -12,7 +12,7 @@ import StepPreview from '@/components/sync-wizard/StepPreview';
 import StepDestination from '@/components/sync-wizard/StepDestination';
 import StepConfirm from '@/components/sync-wizard/StepConfirm';
 import { useGoogleAuth } from '@/features/auth/GoogleAuthContext';
-import { runComparison } from '@/features/sync/comparisonEngine';
+import { runComparisonAsync, type ComparisonProgress } from '@/features/sync/comparisonEngine';
 import { readRows, appendRows, updateCells, createTab, listTabs } from '@/services/googleSheets';
 import { addSyncHistoryEntry } from '@/services/syncHistory';
 import { TARGET_SCHEMA } from '@/types/sync';
@@ -59,18 +59,25 @@ export default function NewSync() {
 
   // Run comparison
   const [isComparing, setIsComparing] = useState(false);
+  const [comparisonProgress, setComparisonProgress] = useState<ComparisonProgress | null>(null);
 
-  const handleRunComparison = (mappingsOverride?: ColumnMapping[]) => {
+  const handleRunComparison = async (mappingsOverride?: ColumnMapping[]) => {
     const effectiveMappings = mappingsOverride || columnMappings;
     if (!sourceRows.length || !effectiveMappings.length) return;
     setIsComparing(true);
-    // Use setTimeout to let the loading UI render before blocking computation
-    setTimeout(() => {
-      const result = runComparison(primaryRows, sourceRows, effectiveMappings);
-      setComparisonResult(result);
-      setIsComparing(false);
-      next();
-    }, 50);
+    setComparisonProgress({ processed: 0, total: sourceRows.length });
+
+    const result = await runComparisonAsync(
+      primaryRows,
+      sourceRows,
+      effectiveMappings,
+      setComparisonProgress
+    );
+
+    setComparisonResult(result);
+    setIsComparing(false);
+    setComparisonProgress(null);
+    next();
   };
 
   // Execute sync
@@ -166,6 +173,7 @@ export default function NewSync() {
       key={4}
       sourceHeaders={sourceHeaders}
       isComparing={isComparing}
+      comparisonProgress={comparisonProgress}
       onMappingsSet={(m) => { setColumnMappings(m); handleRunComparison(m); }}
       onBack={back}
       mappings={columnMappings}
