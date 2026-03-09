@@ -157,11 +157,25 @@ export default function StepColumnMapping({ sourceHeaders, mappings: existingMap
           <p className="text-sm text-destructive">At least Email or Phoneno must be mapped.</p>
         )}
 
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleContinue} disabled={!hasMatchKey} className="gap-2">
-            Run Comparison <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
+        {isComparing ? (
+          <div className="space-y-4 pt-2">
+            <div className="flex items-center gap-3 justify-center py-6">
+              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+              <p className="text-sm font-medium text-foreground">Running comparison…</p>
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-4 w-5/6" />
+            </div>
+          </div>
+        ) : (
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleContinue} disabled={!hasMatchKey} className="gap-2">
+              Run Comparison <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
