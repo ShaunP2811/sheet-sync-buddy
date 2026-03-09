@@ -12,6 +12,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
+import DryRunPreview from './DryRunPreview';
 import type { ComparisonResult, DestinationConfig } from '@/types/sync';
 import type { GoogleSpreadsheet } from '@/types/google';
 
@@ -21,13 +22,15 @@ interface Props {
   sourceLabel: string;
   destination: DestinationConfig;
   result: ComparisonResult | null;
+  primaryHeaders: string[];
+  primaryRowCount: number;
   isLoading: boolean;
   onConfirm: () => void;
   onBack: () => void;
 }
 
 export default function StepConfirm({
-  primarySheet, primaryTab, sourceLabel, destination, result, isLoading, onConfirm, onBack,
+  primarySheet, primaryTab, sourceLabel, destination, result, primaryHeaders, primaryRowCount, isLoading, onConfirm, onBack,
 }: Props) {
   if (!result) return null;
 
@@ -75,6 +78,14 @@ export default function StepConfirm({
             <span className="font-bold text-warning">{result.summary.skippedCount}</span>
           </div>
         </div>
+
+        {/* Dry-run cell preview */}
+        <DryRunPreview
+          result={result}
+          destination={destination}
+          primaryHeaders={primaryHeaders}
+          primaryRowCount={primaryRowCount}
+        />
 
         <div className="flex items-start gap-3 bg-warning/10 border border-warning/20 rounded-lg p-3">
           <AlertTriangle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
