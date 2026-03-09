@@ -28,7 +28,7 @@ export function normalizeEmail(value: string | undefined | null): string {
 /** Trim and strip spaces/dashes from a phone number */
 export function normalizePhone(value: string | undefined | null): string {
   if (!value) return '';
-  return value.trim().replace(/[\s\-()]/g, '').replace(/^p?\+/, '');
+  return value.trim().replace(/[\s\-()]/g, '').replace(/^p?\+/i, '');
 }
 
 /** Parse various date formats and return DD/MM/YYYY HH:mm:ss */

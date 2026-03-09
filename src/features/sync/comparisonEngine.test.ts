@@ -36,6 +36,9 @@ describe('normalizePhone', () => {
   it('strips p+ prefix with formatting', () => {
     expect(normalizePhone('p+1-234-567')).toBe('1234567');
   });
+  it('strips uppercase P+ prefix', () => {
+    expect(normalizePhone('P+60123456789')).toBe('60123456789');
+  });
   it('returns empty for null/undefined', () => {
     expect(normalizePhone(null)).toBe('');
     expect(normalizePhone(undefined)).toBe('');
