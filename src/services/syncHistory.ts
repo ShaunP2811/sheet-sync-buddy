@@ -3,6 +3,12 @@
  */
 import type { SyncRunStatus } from '@/types/sync';
 
+export interface SyncHistoryLogs {
+  newLeads: Array<{ mappedRow: Record<string, string> }>;
+  updates: Array<{ matchedBy: string; matchValue: string; fieldsToFill: Record<string, string> }>;
+  skipped: Array<{ sourceRow: Record<string, string>; reason: string }>;
+}
+
 export interface SyncHistoryEntry {
   id: string;
   primarySheetName: string;
@@ -15,6 +21,7 @@ export interface SyncHistoryEntry {
   rowsSkipped: number;
   status: SyncRunStatus;
   completedAt: string;
+  logs?: SyncHistoryLogs;
 }
 
 const STORAGE_KEY = 'sheetsync_history';

@@ -21,10 +21,23 @@ describe('normalizeEmail', () => {
 
 describe('normalizePhone', () => {
   it('strips spaces and dashes', () => {
-    expect(normalizePhone(' +1-234-567 8901 ')).toBe('+12345678901');
+    expect(normalizePhone(' +1-234-567 8901 ')).toBe('12345678901');
   });
   it('strips parentheses', () => {
     expect(normalizePhone('(123) 456-7890')).toBe('1234567890');
+  });
+  it('strips + prefix', () => {
+    expect(normalizePhone('+60123456789')).toBe('60123456789');
+  });
+  it('strips p+ prefix', () => {
+    expect(normalizePhone('p+60123456789')).toBe('60123456789');
+  });
+  it('strips p+ prefix with formatting', () => {
+    expect(normalizePhone('p+1-234-567')).toBe('1234567');
+  });
+  it('returns empty for null/undefined', () => {
+    expect(normalizePhone(null)).toBe('');
+    expect(normalizePhone(undefined)).toBe('');
   });
 });
 

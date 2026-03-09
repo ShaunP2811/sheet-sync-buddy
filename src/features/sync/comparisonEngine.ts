@@ -28,7 +28,7 @@ export function normalizeEmail(value: string | undefined | null): string {
 /** Trim and strip spaces/dashes from a phone number */
 export function normalizePhone(value: string | undefined | null): string {
   if (!value) return '';
-  return value.trim().replace(/[\s\-()]/g, '');
+  return value.trim().replace(/[\s\-()]/g, '').replace(/^p?\+/, '');
 }
 
 /** Check if a string value is blank/empty after trimming */
@@ -60,7 +60,9 @@ function mapSourceRow(
   for (const m of mappings) {
     const sourceValue = sourceRow[m.sourceColumn];
     if (sourceValue !== undefined) {
-      mapped[m.targetColumn] = sourceValue;
+      mapped[m.targetColumn] = m.targetColumn === 'Phoneno'
+        ? normalizePhone(sourceValue)
+        : sourceValue;
     }
   }
   return mapped;
@@ -231,7 +233,9 @@ function processRow(
       const primaryValue = match.entry.row[targetCol];
       const sourceValue = mapped[targetCol];
       if (isBlank(primaryValue) && !isBlank(sourceValue)) {
-        fieldsToFill[targetCol] = sourceValue!.trim();
+        fieldsToFill[targetCol] = targetCol === 'Phoneno'
+          ? normalizePhone(sourceValue)
+          : sourceValue!.trim();
       }
     }
     if (Object.keys(fieldsToFill).length > 0) {
