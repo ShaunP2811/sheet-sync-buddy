@@ -165,6 +165,7 @@ export default function NewSync() {
     <StepColumnMapping
       key={4}
       sourceHeaders={sourceHeaders}
+      isComparing={isComparing}
       onMappingsSet={(m) => { setColumnMappings(m); handleRunComparison(m); }}
       onBack={back}
       mappings={columnMappings}
