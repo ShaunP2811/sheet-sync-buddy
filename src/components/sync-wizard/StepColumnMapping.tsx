@@ -160,16 +160,22 @@ export default function StepColumnMapping({ sourceHeaders, mappings: existingMap
         )}
 
         {isComparing ? (
-          <div className="space-y-4 pt-2">
-            <div className="flex items-center gap-3 justify-center py-6">
+          <div className="space-y-3 pt-2">
+            <div className="flex items-center gap-3 justify-center py-4">
               <Loader2 className="h-5 w-5 animate-spin text-primary" />
               <p className="text-sm font-medium text-foreground">Running comparison…</p>
             </div>
-            <div className="space-y-2">
-              <Skeleton className="h-4 w-full" />
-              <Skeleton className="h-4 w-3/4" />
-              <Skeleton className="h-4 w-5/6" />
-            </div>
+            {comparisonProgress && comparisonProgress.total > 0 && (
+              <div className="space-y-2">
+                <Progress
+                  value={(comparisonProgress.processed / comparisonProgress.total) * 100}
+                  className="h-2"
+                />
+                <p className="text-xs text-muted-foreground text-center">
+                  {comparisonProgress.processed.toLocaleString()} / {comparisonProgress.total.toLocaleString()} rows processed
+                </p>
+              </div>
+            )}
           </div>
         ) : (
           <div className="flex justify-end pt-2">
