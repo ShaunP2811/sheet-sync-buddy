@@ -12,7 +12,7 @@ import StepPreview from '@/components/sync-wizard/StepPreview';
 import StepDestination from '@/components/sync-wizard/StepDestination';
 import StepConfirm from '@/components/sync-wizard/StepConfirm';
 import { useGoogleAuth } from '@/features/auth/GoogleAuthContext';
-import { runComparison } from '@/features/sync/comparisonEngine';
+import { runComparisonAsync, type ComparisonProgress } from '@/features/sync/comparisonEngine';
 import { readRows, appendRows, updateCells, createTab, listTabs } from '@/services/googleSheets';
 import { addSyncHistoryEntry } from '@/services/syncHistory';
 import { TARGET_SCHEMA } from '@/types/sync';
