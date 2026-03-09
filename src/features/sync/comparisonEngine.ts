@@ -31,6 +31,37 @@ export function normalizePhone(value: string | undefined | null): string {
   return value.trim().replace(/[\s\-()]/g, '').replace(/^p?\+/, '');
 }
 
+/** Parse various date formats and return DD/MM/YYYY HH:mm:ss */
+export function normalizeDate(value: string | undefined | null): string {
+  if (!value || !value.trim()) return '';
+  const raw = value.trim();
+
+  let date: Date | null = null;
+
+  // Format: "2026-02-06 02:22:57(UTC+08:00)" — strip the "(UTC+HH:MM)" suffix
+  const utcSuffixMatch = raw.match(/^(.+?)\(UTC([+-]\d{2}:\d{2})\)$/i);
+  if (utcSuffixMatch) {
+    // Parse as "datetime+offset" by appending the offset
+    date = new Date(utcSuffixMatch[1].trim() + utcSuffixMatch[2]);
+  }
+
+  // Format: ISO 8601 "2026-03-02T08:06:09+08:00" or similar
+  if (!date || isNaN(date.getTime())) {
+    date = new Date(raw);
+  }
+
+  if (!date || isNaN(date.getTime())) return raw; // Can't parse, return as-is
+
+  const dd = String(date.getDate()).padStart(2, '0');
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const yyyy = date.getFullYear();
+  const hh = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  const ss = String(date.getSeconds()).padStart(2, '0');
+
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}:${ss}`;
+}
+
 /** Check if a string value is blank/empty after trimming */
 export function isBlank(value: string | undefined | null): boolean {
   return !value || value.trim() === '';
@@ -60,9 +91,13 @@ function mapSourceRow(
   for (const m of mappings) {
     const sourceValue = sourceRow[m.sourceColumn];
     if (sourceValue !== undefined) {
-      mapped[m.targetColumn] = m.targetColumn === 'Phoneno'
-        ? normalizePhone(sourceValue)
-        : sourceValue;
+      if (m.targetColumn === 'Phoneno') {
+        mapped[m.targetColumn] = normalizePhone(sourceValue);
+      } else if (m.targetColumn === 'Date') {
+        mapped[m.targetColumn] = normalizeDate(sourceValue);
+      } else {
+        mapped[m.targetColumn] = sourceValue;
+      }
     }
   }
   return mapped;
@@ -233,9 +268,13 @@ function processRow(
       const primaryValue = match.entry.row[targetCol];
       const sourceValue = mapped[targetCol];
       if (isBlank(primaryValue) && !isBlank(sourceValue)) {
-        fieldsToFill[targetCol] = targetCol === 'Phoneno'
-          ? normalizePhone(sourceValue)
-          : sourceValue!.trim();
+        if (targetCol === 'Phoneno') {
+          fieldsToFill[targetCol] = normalizePhone(sourceValue);
+        } else if (targetCol === 'Date') {
+          fieldsToFill[targetCol] = normalizeDate(sourceValue);
+        } else {
+          fieldsToFill[targetCol] = sourceValue!.trim();
+        }
       }
     }
     if (Object.keys(fieldsToFill).length > 0) {
