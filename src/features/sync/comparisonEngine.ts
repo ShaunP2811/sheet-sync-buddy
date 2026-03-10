@@ -25,10 +25,10 @@ export function normalizeEmail(value: string | undefined | null): string {
   return value.trim().toLowerCase();
 }
 
-/** Trim and strip spaces/dashes and leading p+ prefix from a phone number */
+/** Trim and strip spaces/dashes and leading p:+ prefix from a phone number */
 export function normalizePhone(value: string | undefined | null): string {
   if (!value) return '';
-  return value.trim().replace(/[\s\-()]/g, '').replace(/^p?\+?/i, '');
+  return value.trim().replace(/[\s\-()]/g, '').replace(/^p?:?\+?/i, '');
 }
 
 /** Parse various date formats and return DD/MM/YYYY HH:mm:ss */
