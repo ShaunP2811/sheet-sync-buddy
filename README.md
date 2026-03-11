@@ -4,6 +4,12 @@
 
 **Created by**: ShaunP2811 (Git-Username)
 
+**What it does**:
+1. It analyses data between a main Google Sheet and other files, which the user can select or upload.
+2. Automatically fills in missing data according to the columns selected by the user.
+3. Shows a preview of the data before execution.
+4. All your missing data or leads are now filled in, **instantly**, no need for manual checking anymore.
+
 ## How can I edit this code?
 
 **Edit a file directly in GitHub**
