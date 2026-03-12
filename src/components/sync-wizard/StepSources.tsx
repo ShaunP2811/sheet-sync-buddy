@@ -43,6 +43,7 @@ interface Props {
   comparisonProgress: ComparisonProgress | null;
   onRunComparison: () => void;
   onBack: () => void;
+  primaryHeaders: string[];
 }
 
 function norm(s: string): string {
@@ -56,6 +57,7 @@ export default function StepSources({
   comparisonProgress,
   onRunComparison,
   onBack,
+  primaryHeaders,
 }: Props) {
   const [phase, setPhase] = useState<Phase>('list');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
@@ -96,13 +98,15 @@ export default function StepSources({
     setPhase(type === 'csv' ? 'load-csv' : 'load-sheet');
   };
 
+  const targetSchema = primaryHeaders.length > 0 ? primaryHeaders : [...TARGET_SCHEMA];
+
   const handleDataLoaded = (headers: string[], rows: SheetRow[], label: string) => {
     setPendingHeaders(headers);
     setPendingRows(rows);
     setPendingLabel(label);
-    // Auto-generate initial mappings
+    // Auto-generate initial mappings against primary tab headers
     const initial: ColumnMapping[] = [];
-    for (const targetCol of TARGET_SCHEMA) {
+    for (const targetCol of targetSchema) {
       const match = headers.find((h) => norm(h) === norm(targetCol));
       if (match) {
         initial.push({ sourceColumn: match, targetColumn: targetCol });
@@ -174,6 +178,7 @@ export default function StepSources({
         sourceHeaders={pendingHeaders}
         existingMappings={pendingMappings}
         sourceLabel={pendingLabel}
+        targetSchema={targetSchema}
         onSave={handleMappingsSaved}
         onBack={handlePhaseBack}
       />
@@ -512,18 +517,31 @@ function ColumnMapper({
   sourceHeaders,
   existingMappings,
   sourceLabel,
+  targetSchema,
   onSave,
   onBack,
 }: {
   sourceHeaders: string[];
   existingMappings: ColumnMapping[];
   sourceLabel: string;
+  targetSchema: string[];
   onSave: (mappings: ColumnMapping[]) => void;
   onBack: () => void;
 }) {
+  // Detect which target columns serve as match keys (email / phone)
+  const matchKeySet = useMemo(() => {
+    const keys = new Set<string>();
+    for (const col of targetSchema) {
+      const n = norm(col);
+      if (n === 'email' || n === 'emailaddress') keys.add(col);
+      if (n === 'phoneno' || n === 'phone' || n === 'phonenumber') keys.add(col);
+    }
+    return keys;
+  }, [targetSchema]);
+
   const [mappings, setMappings] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
-    for (const targetCol of TARGET_SCHEMA) {
+    for (const targetCol of targetSchema) {
       const match = sourceHeaders.find((h) => norm(h) === norm(targetCol));
       if (match) initial[targetCol] = match;
     }
@@ -541,11 +559,11 @@ function ColumnMapper({
   const autoStats = useMemo(() => {
     const sourceNormed = new Set(sourceHeaders.map(norm));
     let matched = 0;
-    for (const col of TARGET_SCHEMA) {
+    for (const col of targetSchema) {
       if (sourceNormed.has(norm(col))) matched++;
     }
-    return { matched, total: TARGET_SCHEMA.length };
-  }, [sourceHeaders]);
+    return { matched, total: targetSchema.length };
+  }, [sourceHeaders, targetSchema]);
 
   const mappedCount = Object.values(mappings).filter((v) => v && v !== '_unmapped_').length;
 
@@ -565,7 +583,7 @@ function ColumnMapper({
 
   const handleSave = () => {
     const result = currentMappingsAsArray();
-    if (!result.some((m) => m.targetColumn === 'Email') && !result.some((m) => m.targetColumn === 'Phoneno')) {
+    if (!result.some((m) => matchKeySet.has(m.targetColumn))) {
       return;
     }
     onSave(result);
@@ -589,7 +607,7 @@ function ColumnMapper({
   const applyPreset = (preset: MappingPreset) => {
     const headerSet = new Set(sourceHeaders);
     const newMappings: Record<string, string> = {};
-    for (const col of TARGET_SCHEMA) {
+    for (const col of targetSchema) {
       newMappings[col] = '_unmapped_';
     }
     let applied = 0;
@@ -618,7 +636,7 @@ function ColumnMapper({
   };
 
   const hasMatchKey = Object.entries(mappings).some(
-    ([k, v]) => (k === 'Email' || k === 'Phoneno') && v && v !== '_unmapped_'
+    ([k, v]) => matchKeySet.has(k) && v && v !== '_unmapped_'
   );
 
   return (
@@ -631,7 +649,7 @@ function ColumnMapper({
           <div>
             <h2 className="text-lg font-semibold text-foreground">Map Columns</h2>
             <p className="text-sm text-muted-foreground">
-              Map columns for <span className="font-medium">{sourceLabel}</span>. Email or Phoneno is required.
+              Map columns for <span className="font-medium">{sourceLabel}</span>. At least one match key (email or phone) is required.
             </p>
           </div>
         </div>
@@ -689,8 +707,8 @@ function ColumnMapper({
         </div>
 
         <div className="space-y-2 max-h-[450px] overflow-y-auto">
-          {TARGET_SCHEMA.map((targetCol) => {
-            const isKey = targetCol === 'Email' || targetCol === 'Phoneno';
+          {targetSchema.map((targetCol) => {
+            const isKey = matchKeySet.has(targetCol);
             const isMapped = mappings[targetCol] && mappings[targetCol] !== '_unmapped_';
             return (
               <div key={targetCol} className="flex items-center gap-3 py-2">
@@ -715,7 +733,7 @@ function ColumnMapper({
         </div>
 
         {!hasMatchKey && (
-          <p className="text-sm text-destructive">At least Email or Phoneno must be mapped.</p>
+          <p className="text-sm text-destructive">At least one match key (email or phone column) must be mapped.</p>
         )}
 
         <div className="flex justify-end pt-2">

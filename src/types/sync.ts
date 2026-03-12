@@ -34,7 +34,7 @@ export type MatchField = 'email' | 'phoneno';
 /** Column mapping: source column → target column */
 export interface ColumnMapping {
   sourceColumn: string;
-  targetColumn: TargetColumn;
+  targetColumn: string;
 }
 
 /** A saved column mapping preset */

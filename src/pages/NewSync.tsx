@@ -10,11 +10,9 @@ import StepPreview from '@/components/sync-wizard/StepPreview';
 import StepDestination from '@/components/sync-wizard/StepDestination';
 import StepConfirm from '@/components/sync-wizard/StepConfirm';
 import { useGoogleAuth } from '@/features/auth/GoogleAuthContext';
-import { runComparisonAsync, mapSourceRow, normalizeEmail, normalizePhone, type ComparisonProgress } from '@/features/sync/comparisonEngine';
+import { runComparisonAsync, mapSourceRow, normalizeEmail, normalizePhone, detectKeyColumns, type ComparisonProgress } from '@/features/sync/comparisonEngine';
 import { readRows, appendRows, updateCells, createTab, listTabs } from '@/services/googleSheets';
 import { addSyncHistoryEntry } from '@/services/syncHistory';
-import { TARGET_SCHEMA } from '@/types/sync';
-import { rowToArray } from '@/lib/schema';
 import type { SourceEntry, ColumnMapping, ComparisonResult, DestinationConfig } from '@/types/sync';
 import type { GoogleSpreadsheet, GoogleSheetTab, CellUpdate } from '@/types/google';
 
@@ -59,20 +57,24 @@ export default function NewSync() {
     if (sources.length === 0) return;
 
     // Merge all sources: map each source's rows using its own column mappings
+    // Target columns are now the primary sheet's actual headers
     const allMappedRows: Record<string, string>[] = [];
     for (const source of sources) {
       for (const row of source.rows) {
-        const mapped = mapSourceRow(row, source.columnMappings);
+        const mapped = mapSourceRow(row, source.columnMappings, primaryHeaders);
         allMappedRows.push(mapped);
       }
     }
+
+    // Detect email/phone columns from primary headers
+    const { emailCol, phoneCol } = detectKeyColumns(primaryHeaders);
 
     // Deduplicate merged rows by email (primary) then phone (fallback)
     const seen = new Set<string>();
     const deduped: Record<string, string>[] = [];
     for (const row of allMappedRows) {
-      const email = normalizeEmail(row['Email']);
-      const phone = normalizePhone(row['Phoneno']);
+      const email = emailCol ? normalizeEmail(row[emailCol]) : '';
+      const phone = phoneCol ? normalizePhone(row[phoneCol]) : '';
       const key = email || phone || '';
       if (!key || !seen.has(key)) {
         if (key) seen.add(key);
@@ -80,8 +82,8 @@ export default function NewSync() {
       }
     }
 
-    // Use identity mappings since rows are already mapped to target schema
-    const identityMappings: ColumnMapping[] = TARGET_SCHEMA.map((col) => ({
+    // Use identity mappings since rows are already mapped to primary headers
+    const identityMappings: ColumnMapping[] = primaryHeaders.map((col) => ({
       sourceColumn: col,
       targetColumn: col,
     }));
@@ -93,7 +95,9 @@ export default function NewSync() {
       primaryRows,
       deduped,
       identityMappings,
-      setComparisonProgress
+      setComparisonProgress,
+      ['email', 'phoneno'],
+      primaryHeaders
     );
 
     setComparisonResult(result);
@@ -109,47 +113,27 @@ export default function NewSync() {
 
     try {
       const destTab = destination.tabName;
+      const destHeaders = [...primaryHeaders];
 
-      // Create new tab if needed
+      // Create new tab if needed — use primary headers as the schema
       if (destination.type === 'new_tab') {
-        await createTab(accessToken, primarySheet.id, destTab, [...TARGET_SCHEMA]);
+        await createTab(accessToken, primarySheet.id, destTab, destHeaders);
       }
 
-      // Determine the actual column order from the destination sheet
-      // For same_tab/existing_tab, use the actual sheet headers; for new_tab, use TARGET_SCHEMA
-      const destHeaders = destination.type === 'new_tab' ? [...TARGET_SCHEMA] : primaryHeaders;
-
-      // Build a mapping from TARGET_SCHEMA column names → actual sheet header names
-      // e.g. "FullName" → "Full Name", "Phoneno" → "Phone No"
-      const normStr = (s: string) => s.toLowerCase().replace(/[\s_\-()]/g, '');
-      const targetToSheetHeader: Record<string, string> = {};
-      const sheetHeaderToTarget: Record<string, string> = {};
-      for (const targetCol of TARGET_SCHEMA) {
-        const match = destHeaders.find((h) => normStr(h) === normStr(targetCol));
-        if (match) {
-          targetToSheetHeader[targetCol] = match;
-          sheetHeaderToTarget[match] = targetCol;
-        }
-      }
-
-      // Append new leads — ordered by destination headers, mapping target keys to sheet headers
+      // Append new leads — mapped rows already keyed by primary header names
       if (comparisonResult.newLeads.length > 0) {
         const rows = comparisonResult.newLeads.map((nl) =>
-          destHeaders.map((sheetCol) => {
-            const targetCol = sheetHeaderToTarget[sheetCol];
-            return targetCol ? (nl.mappedRow[targetCol] ?? '') : '';
-          })
+          destHeaders.map((col) => nl.mappedRow[col] ?? '')
         );
         await appendRows(accessToken, primarySheet.id, destTab, rows);
       }
 
-      // Update blank fields — use actual sheet column positions
+      // Update blank fields — column names match primary headers directly
       if (comparisonResult.updates.length > 0 && destination.type === 'same_tab') {
         const cellUpdates: CellUpdate[] = [];
         for (const update of comparisonResult.updates) {
-          for (const [targetCol, value] of Object.entries(update.fieldsToFill)) {
-            const sheetCol = targetToSheetHeader[targetCol];
-            const colIndex = sheetCol ? destHeaders.indexOf(sheetCol) : -1;
+          for (const [col, value] of Object.entries(update.fieldsToFill)) {
+            const colIndex = destHeaders.indexOf(col);
             if (colIndex >= 0) {
               cellUpdates.push({
                 row: update.primaryRowIndex,
@@ -220,6 +204,7 @@ export default function NewSync() {
       comparisonProgress={comparisonProgress}
       onRunComparison={handleRunComparison}
       onBack={back}
+      primaryHeaders={primaryHeaders}
     />,
     <StepPreview
       key={3}

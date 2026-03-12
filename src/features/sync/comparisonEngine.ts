@@ -15,6 +15,7 @@ import type {
   SkippedRow,
   MatchField,
 } from '@/types/sync';
+import { TARGET_SCHEMA } from '@/types/sync';
 import { emptyTargetRow } from '@/lib/schema';
 
 // ─── Normalization ───────────────────────────────────────────
@@ -82,6 +83,27 @@ export function isBlank(value: string | undefined | null): boolean {
   return !value || value.trim() === '';
 }
 
+// ─── Key Column Detection ────────────────────────────────────
+
+const normCol = (s: string) => s.toLowerCase().replace(/[\s_\-()]/g, '');
+
+interface KeyColumns {
+  emailCol: string | null;
+  phoneCol: string | null;
+}
+
+/** Detect which header names correspond to email and phone columns */
+export function detectKeyColumns(headers: string[]): KeyColumns {
+  let emailCol: string | null = null;
+  let phoneCol: string | null = null;
+  for (const h of headers) {
+    const n = normCol(h);
+    if (!emailCol && (n === 'email' || n === 'emailaddress')) emailCol = h;
+    if (!phoneCol && (n === 'phoneno' || n === 'phone' || n === 'phonenumber' || n === 'phoneno.')) phoneCol = h;
+  }
+  return { emailCol, phoneCol };
+}
+
 // ─── Key Extraction ──────────────────────────────────────────
 
 interface RowKey {
@@ -89,10 +111,10 @@ interface RowKey {
   phone: string;
 }
 
-function extractKey(row: SheetRow): RowKey {
+function extractKey(row: SheetRow, keyCols: KeyColumns): RowKey {
   return {
-    email: normalizeEmail(row['Email']),
-    phone: normalizePhone(row['Phoneno']),
+    email: keyCols.emailCol ? normalizeEmail(row[keyCols.emailCol]) : '',
+    phone: keyCols.phoneCol ? normalizePhone(row[keyCols.phoneCol]) : '',
   };
 }
 
@@ -100,15 +122,21 @@ function extractKey(row: SheetRow): RowKey {
 
 export function mapSourceRow(
   sourceRow: SheetRow,
-  mappings: ColumnMapping[]
+  mappings: ColumnMapping[],
+  targetHeaders?: string[]
 ): SheetRow {
-  const mapped = emptyTargetRow();
+  const mapped: SheetRow = {};
+  const headers = targetHeaders || [...TARGET_SCHEMA];
+  for (const h of headers) {
+    mapped[h] = '';
+  }
   for (const m of mappings) {
     const sourceValue = sourceRow[m.sourceColumn];
     if (sourceValue !== undefined) {
-      if (m.targetColumn === 'Phoneno') {
+      const n = normCol(m.targetColumn);
+      if (n === 'phoneno' || n === 'phone' || n === 'phonenumber') {
         mapped[m.targetColumn] = normalizePhone(sourceValue);
-      } else if (m.targetColumn === 'Date') {
+      } else if (n === 'date') {
         mapped[m.targetColumn] = normalizeDate(sourceValue);
       } else {
         mapped[m.targetColumn] = sourceValue;
@@ -130,13 +158,13 @@ interface PrimaryLookup {
   byPhone: Map<string, PrimaryEntry>;
 }
 
-function buildPrimaryLookup(primaryRows: SheetRow[]): PrimaryLookup {
+function buildPrimaryLookup(primaryRows: SheetRow[], keyCols: KeyColumns): PrimaryLookup {
   const byEmail = new Map<string, PrimaryEntry>();
   const byPhone = new Map<string, PrimaryEntry>();
 
   for (let i = 0; i < primaryRows.length; i++) {
     const row = primaryRows[i];
-    const key = extractKey(row);
+    const key = extractKey(row, keyCols);
 
     if (key.email) {
       byEmail.set(key.email, { row, index: i });
@@ -181,16 +209,19 @@ export function runComparison(
   primaryRows: SheetRow[],
   sourceRows: SheetRow[],
   columnMappings: ColumnMapping[],
-  matchFields: MatchField[] = ['email', 'phoneno']
+  matchFields: MatchField[] = ['email', 'phoneno'],
+  targetHeaders?: string[]
 ): ComparisonResult {
   const newLeads: NewLead[] = [];
   const updates: UpdateLead[] = [];
   const skipped: SkippedRow[] = [];
 
-  const lookup = buildPrimaryLookup(primaryRows);
+  const headers = targetHeaders || [...TARGET_SCHEMA];
+  const keyCols = detectKeyColumns(headers);
+  const lookup = buildPrimaryLookup(primaryRows, keyCols);
 
   for (const sourceRow of sourceRows) {
-    processRow(sourceRow, lookup, columnMappings, matchFields, newLeads, updates, skipped);
+    processRow(sourceRow, lookup, columnMappings, matchFields, newLeads, updates, skipped, keyCols, targetHeaders);
   }
 
   return {
@@ -211,20 +242,23 @@ export function runComparisonAsync(
   sourceRows: SheetRow[],
   columnMappings: ColumnMapping[],
   onProgress: (p: ComparisonProgress) => void,
-  matchFields: MatchField[] = ['email', 'phoneno']
+  matchFields: MatchField[] = ['email', 'phoneno'],
+  targetHeaders?: string[]
 ): Promise<ComparisonResult> {
   return new Promise((resolve) => {
     const newLeads: NewLead[] = [];
     const updates: UpdateLead[] = [];
     const skipped: SkippedRow[] = [];
-    const lookup = buildPrimaryLookup(primaryRows);
+    const headers = targetHeaders || [...TARGET_SCHEMA];
+    const keyCols = detectKeyColumns(headers);
+    const lookup = buildPrimaryLookup(primaryRows, keyCols);
     const total = sourceRows.length;
     let index = 0;
 
     function processBatch() {
       const end = Math.min(index + BATCH_SIZE, total);
       while (index < end) {
-        processRow(sourceRows[index], lookup, columnMappings, matchFields, newLeads, updates, skipped);
+        processRow(sourceRows[index], lookup, columnMappings, matchFields, newLeads, updates, skipped, keyCols, targetHeaders);
         index++;
       }
       onProgress({ processed: index, total });
@@ -259,12 +293,14 @@ function processRow(
   matchFields: MatchField[],
   newLeads: NewLead[],
   updates: UpdateLead[],
-  skipped: SkippedRow[]
+  skipped: SkippedRow[],
+  keyCols: KeyColumns,
+  targetHeaders?: string[]
 ) {
-  const mapped = mapSourceRow(sourceRow, columnMappings);
+  const mapped = mapSourceRow(sourceRow, columnMappings, targetHeaders);
   const key: RowKey = {
-    email: normalizeEmail(mapped['Email']),
-    phone: normalizePhone(mapped['Phoneno']),
+    email: keyCols.emailCol ? normalizeEmail(mapped[keyCols.emailCol]) : '',
+    phone: keyCols.phoneCol ? normalizePhone(mapped[keyCols.phoneCol]) : '',
   };
 
   if (!key.email && !key.phone) {
@@ -283,9 +319,10 @@ function processRow(
       const primaryValue = match.entry.row[targetCol];
       const sourceValue = mapped[targetCol];
       if (isBlank(primaryValue) && !isBlank(sourceValue)) {
-        if (targetCol === 'Phoneno') {
+        const n = normCol(targetCol);
+        if (n === 'phoneno' || n === 'phone' || n === 'phonenumber') {
           fieldsToFill[targetCol] = normalizePhone(sourceValue);
-        } else if (targetCol === 'Date') {
+        } else if (n === 'date') {
           fieldsToFill[targetCol] = normalizeDate(sourceValue);
         } else {
           fieldsToFill[targetCol] = sourceValue!.trim();
