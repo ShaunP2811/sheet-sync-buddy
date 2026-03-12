@@ -155,6 +155,7 @@ export default function NewSync() {
         id: crypto.randomUUID(),
         primarySheetName: primarySheet.name,
         primaryTabName: primaryTab,
+        primaryHeaders,
         sourceType: sources.length === 1 ? sources[0].type : 'csv',
         sourceLabel: compositeSourceLabel,
         sourceLabels,

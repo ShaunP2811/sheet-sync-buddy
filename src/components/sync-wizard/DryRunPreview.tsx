@@ -3,7 +3,6 @@ import { ChevronDown, ChevronRight, FileSpreadsheet, Pencil, Plus } from 'lucide
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { TARGET_SCHEMA } from '@/types/sync';
 import type { ComparisonResult, DestinationConfig } from '@/types/sync';
 
 interface Props {
@@ -23,40 +22,24 @@ function columnToLetter(col: number): string {
   return letter;
 }
 
-function normStr(s: string): string {
-  return s.toLowerCase().replace(/[\s_\-()]/g, '');
-}
-
 export default function DryRunPreview({ result, destination, primaryHeaders, primaryRowCount }: Props) {
   const [newLeadsOpen, setNewLeadsOpen] = useState(false);
   const [updatesOpen, setUpdatesOpen] = useState(false);
 
-  const destHeaders = destination.type === 'new_tab' ? [...TARGET_SCHEMA] : primaryHeaders;
+  const destHeaders = [...primaryHeaders];
 
-  // Build target→sheet header mapping
-  const targetToSheetHeader: Record<string, string> = {};
-  const sheetHeaderToTarget: Record<string, string> = {};
-  for (const targetCol of TARGET_SCHEMA) {
-    const match = destHeaders.find((h) => normStr(h) === normStr(targetCol));
-    if (match) {
-      targetToSheetHeader[targetCol] = match;
-      sheetHeaderToTarget[match] = targetCol;
-    }
-  }
-
-  // Compute new lead cell writes
+  // Compute new lead cell writes — mappedRow is keyed by primary headers
   const newLeadCells: { row: number; cells: { ref: string; column: string; value: string }[] }[] = [];
   const startRow = primaryRowCount + 2; // +1 for header, +1 for 1-indexed
   result.newLeads.slice(0, 20).forEach((lead, i) => {
     const rowNum = startRow + i;
     const cells: { ref: string; column: string; value: string }[] = [];
-    destHeaders.forEach((sheetCol, colIdx) => {
-      const targetCol = sheetHeaderToTarget[sheetCol];
-      const value = targetCol ? (lead.mappedRow[targetCol] ?? '') : '';
+    destHeaders.forEach((col, colIdx) => {
+      const value = lead.mappedRow[col] ?? '';
       if (value) {
         cells.push({
           ref: `${columnToLetter(colIdx)}${rowNum}`,
-          column: sheetCol,
+          column: col,
           value,
         });
       }
@@ -66,18 +49,17 @@ export default function DryRunPreview({ result, destination, primaryHeaders, pri
     }
   });
 
-  // Compute update cell writes
+  // Compute update cell writes — fieldsToFill is keyed by primary headers
   const updateCells: { row: number; matchInfo: string; cells: { ref: string; column: string; value: string }[] }[] = [];
   result.updates.slice(0, 20).forEach((update) => {
     const rowNum = update.primaryRowIndex + 2; // +1 header, +1 for 1-indexed
     const cells: { ref: string; column: string; value: string }[] = [];
-    for (const [targetCol, value] of Object.entries(update.fieldsToFill)) {
-      const sheetCol = targetToSheetHeader[targetCol];
-      const colIdx = sheetCol ? destHeaders.indexOf(sheetCol) : -1;
+    for (const [col, value] of Object.entries(update.fieldsToFill)) {
+      const colIdx = destHeaders.indexOf(col);
       if (colIdx >= 0) {
         cells.push({
           ref: `${columnToLetter(colIdx)}${rowNum}`,
-          column: sheetCol!,
+          column: col,
           value,
         });
       }

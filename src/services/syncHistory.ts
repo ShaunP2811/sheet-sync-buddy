@@ -13,6 +13,7 @@ export interface SyncHistoryEntry {
   id: string;
   primarySheetName: string;
   primaryTabName: string;
+  primaryHeaders?: string[];
   sourceType: string;
   sourceLabel: string;
   sourceLabels?: string[];

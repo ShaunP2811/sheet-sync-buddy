@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { ArrowLeft, CheckCircle2, XCircle, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -8,11 +9,33 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import AppLayout from '@/components/layout/AppLayout';
 import { getSyncHistoryEntry } from '@/services/syncHistory';
-import { TARGET_SCHEMA } from '@/types/sync';
 
 export default function SyncDetail() {
   const { id } = useParams<{ id: string }>();
   const entry = id ? getSyncHistoryEntry(id) : null;
+
+  // Derive display columns: use stored primaryHeaders, or fall back to
+  // extracting keys from the logged data (for entries saved before this change)
+  const displayHeaders = useMemo(() => {
+    if (!entry) return [];
+    if (entry.primaryHeaders && entry.primaryHeaders.length > 0) return entry.primaryHeaders;
+    // Fallback: derive from logged data
+    if (entry.logs) {
+      const keysSet = new Set<string>();
+      for (const lead of entry.logs.newLeads) {
+        for (const k of Object.keys(lead.mappedRow)) {
+          if (lead.mappedRow[k]) keysSet.add(k);
+        }
+      }
+      for (const update of entry.logs.updates) {
+        for (const k of Object.keys(update.fieldsToFill)) {
+          keysSet.add(k);
+        }
+      }
+      if (keysSet.size > 0) return Array.from(keysSet);
+    }
+    return [];
+  }, [entry]);
 
   if (!entry) {
     return (
@@ -105,7 +128,7 @@ export default function SyncDetail() {
           </Card>
         </div>
 
-        {entry.logs && (
+        {entry.logs && displayHeaders.length > 0 && (
           <Card>
             <CardHeader>
               <CardTitle className="text-base">Detailed Logs</CardTitle>
@@ -127,7 +150,7 @@ export default function SyncDetail() {
                             <TableHeader>
                               <TableRow>
                                 <TableHead className="w-10 sticky left-0 bg-background">#</TableHead>
-                                {TARGET_SCHEMA.map((col) => (
+                                {displayHeaders.map((col) => (
                                   <TableHead key={col}>{col}</TableHead>
                                 ))}
                               </TableRow>
@@ -136,7 +159,7 @@ export default function SyncDetail() {
                               {entry.logs.newLeads.map((lead, i) => (
                                 <TableRow key={i}>
                                   <TableCell className="text-muted-foreground sticky left-0 bg-background">{i + 1}</TableCell>
-                                  {TARGET_SCHEMA.map((col) => (
+                                  {displayHeaders.map((col) => (
                                     <TableCell key={col} className="text-xs whitespace-nowrap">
                                       {lead.mappedRow[col] || '—'}
                                     </TableCell>
@@ -168,7 +191,7 @@ export default function SyncDetail() {
                                 <TableHead className="w-10 sticky left-0 bg-background">#</TableHead>
                                 <TableHead>Matched By</TableHead>
                                 <TableHead>Match Value</TableHead>
-                                {TARGET_SCHEMA.map((col) => (
+                                {displayHeaders.map((col) => (
                                   <TableHead key={col}>{col}</TableHead>
                                 ))}
                               </TableRow>
@@ -181,7 +204,7 @@ export default function SyncDetail() {
                                     <Badge variant="outline">{update.matchedBy}</Badge>
                                   </TableCell>
                                   <TableCell className="font-mono text-xs">{update.matchValue}</TableCell>
-                                  {TARGET_SCHEMA.map((col) => {
+                                  {displayHeaders.map((col) => {
                                     const val = update.fieldsToFill[col];
                                     return (
                                       <TableCell key={col} className={`text-xs whitespace-nowrap ${val ? 'text-green-600 font-medium' : 'text-muted-foreground'}`}>
