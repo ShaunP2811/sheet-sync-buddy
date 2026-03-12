@@ -15,6 +15,16 @@ function authHeaders(token: string) {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
+/** Encode a tab name for the Sheets API range parameter.
+ *  Tab names with spaces or special characters must be single-quoted. */
+function encodeRange(tabName: string): string {
+  // If tab name contains spaces, special chars, or starts with a digit, wrap in single quotes
+  // Escape any single quotes within the name by doubling them
+  const escaped = tabName.replace(/'/g, "''");
+  const quoted = `'${escaped}'`;
+  return encodeURIComponent(quoted);
+}
+
 /** List spreadsheets the user has access to */
 export async function listSpreadsheets(token: string): Promise<GoogleSpreadsheet[]> {
   const q = encodeURIComponent("mimeType='application/vnd.google-apps.spreadsheet' and trashed=false");
@@ -55,7 +65,7 @@ export async function readRows(
   spreadsheetId: string,
   tabName: string
 ): Promise<{ headers: string[]; rows: SheetRow[] }> {
-  const range = encodeURIComponent(tabName);
+  const range = encodeRange(tabName);
   const res = await fetch(
     `${SHEETS_API}/${spreadsheetId}/values/${range}`,
     { headers: authHeaders(token) }
@@ -84,7 +94,7 @@ export async function appendRows(
   tabName: string,
   rows: string[][]
 ): Promise<void> {
-  const range = encodeURIComponent(tabName);
+  const range = encodeRange(tabName);
   const res = await fetch(
     `${SHEETS_API}/${spreadsheetId}/values/${range}:append?valueInputOption=RAW&insertDataOption=INSERT_ROWS`,
     {
@@ -106,7 +116,8 @@ export async function updateCells(
 ): Promise<void> {
   const data = updates.map((u) => {
     const colLetter = columnToLetter(u.column);
-    const range = `${tabName}!${colLetter}${u.row + 2}`; // +2 for 1-indexed and header row
+    const escaped = tabName.replace(/'/g, "''");
+    const range = `'${escaped}'!${colLetter}${u.row + 2}`; // +2 for 1-indexed and header row
     return { range, values: [[u.value]] };
   });
 
