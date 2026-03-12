@@ -32,3 +32,8 @@ export function emptyTargetRow(): Record<TargetColumn, string> {
 export function rowToArray(row: Record<string, string>): string[] {
   return TARGET_SCHEMA.map((col) => row[col] ?? '');
 }
+
+/** Convert a mapped row to an ordered array matching given headers */
+export function rowToArrayByHeaders(row: Record<string, string>, headers: string[]): string[] {
+  return headers.map((col) => row[col] ?? '');
+}
